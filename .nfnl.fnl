@@ -1,0 +1,1 @@
+{:compiler-options {:allowedGlobals false}}
