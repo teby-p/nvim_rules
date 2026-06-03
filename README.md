@@ -1,4 +1,4 @@
-# escort
+# escort ❤️💬
 
 Scripts en Fennel para Neovim que automatizan mi trabajo en Auditboard.
 
