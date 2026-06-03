@@ -25,6 +25,7 @@
   "pullRequest(number: %d) {
     commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
     reviewThreads(first: 100) { nodes { isResolved isOutdated } }
+    latestReviews(first: 20) { nodes { state author { login } } }
   }")
 
 (fn build-batch-query [prs]
@@ -35,7 +36,7 @@
         (when name-with-owner
           (let [parts2 (vim.split name-with-owner "/")
                 owner (. parts2 1)
-                repo (. parts2 2)e
+                repo (. parts2 2)]
             (table.insert parts
               (string.format "pr%d: repository(owner: %q, name: %q) { %s }"
                              i owner repo
@@ -43,7 +44,8 @@
     (.. "query { " (table.concat parts " ") " }")))
 
 (fn fetch-batch-details [prs]
-  "Devuelve lista de {:ci :unresolved :outdated} en el mismo orden que prs."
+  "Devuelve lista de {:ci :unresolved :outdated :approvals :changes-requested}
+  en el mismo orden que prs."
   (if (= 0 (length prs))
     []
     (let [q (build-batch-query prs)
@@ -55,13 +57,23 @@
           (each [i _ (ipairs prs)]
             (let [pr-data (?. data (.. "pr" i) :pullRequest)
                   ci (?. pr-data :commits :nodes 1 :commit :statusCheckRollup :state)
-                  threads (or (?. pr-data :reviewThreads :nodes) [])]
+                  threads (or (?. pr-data :reviewThreads :nodes) [])
+                  reviews (or (?. pr-data :latestReviews :nodes) [])]
               (var u 0)
               (var o 0)
+              (var cr 0)
+              (local approvers [])
               (each [_ t (ipairs threads)]
                 (when (not t.isResolved) (set u (+ u 1)))
                 (when t.isOutdated (set o (+ o 1))))
-              (table.insert result {:ci ci :unresolved u :outdated o})))
+              (each [_ r (ipairs reviews)]
+                (when (= r.state "APPROVED")
+                  (let [login (?. r :author :login)]
+                    (when login (table.insert approvers login))))
+                (when (= r.state "CHANGES_REQUESTED") (set cr (+ cr 1))))
+              (table.insert result {:ci ci :unresolved u :outdated o
+                                    :approvers approvers
+                                    :changes-requested cr})))
           result)))))
 
 ;; ── Comments view ─────────────────────────────────
@@ -204,12 +216,22 @@
         repo (or (?. pr :repository :nameWithOwner) "?")
         unr (or (?. d :unresolved) 0)
         out (or (?. d :outdated) 0)
+        approvers (or (?. d :approvers) [])
+        chreq (or (?. d :changes-requested) 0)
         num-str (string.format "#%d" pr.number)
         jira-key (jira.extract-jira-key pr.title)
         jira-status (and jira-key (. jira-lookup jira-key))
         line0 (.. num-str "  " icon "  " repo)
         line1 (.. "  " pr.title)
-        line2 (.. "  💬 " (string.format "%d unresolved · %d outdated" unr out))
+        counts-prefix (.. "  💬 " (string.format "%d unresolved · %d outdated" unr out))
+        approvers-prefix "  ✅ "
+        approvers-names (table.concat approvers ", ")
+        changes-suffix (if (> chreq 0) (string.format "  ❌ %d" chreq) "")
+        line2 (.. counts-prefix
+                  (if (> (length approvers) 0)
+                    (.. approvers-prefix approvers-names)
+                    "")
+                  changes-suffix)
         line3 (if jira-status
                 (string.format "  🎫 %s [%s]" jira-key jira-status)
                 "")
@@ -222,6 +244,10 @@
     (table.insert hls {:line 0 :col-start icon-start :col-end icon-end :hl (ci-hl (?. d :ci))})
     (table.insert hls {:line 0 :col-start repo-start :col-end repo-end :hl :Function})
     (table.insert hls {:line 2 :col-start 0 :col-end (length line2) :hl :Comment})
+    (when (> (length approvers) 0)
+      (let [start (+ (length counts-prefix) (length approvers-prefix))
+            end-c (+ start (length approvers-names))]
+        (table.insert hls {:line 2 :col-start start :col-end end-c :hl :DiagnosticOk})))
     (when jira-status
       (let [hl (if (= jira-status "On Hold") :DiagnosticWarn :DiagnosticInfo)]
         (table.insert hls {:line 3 :col-start 0 :col-end (length line3) :hl hl})))
