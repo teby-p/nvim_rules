@@ -35,7 +35,7 @@
         (when name-with-owner
           (let [parts2 (vim.split name-with-owner "/")
                 owner (. parts2 1)
-                repo (. parts2 2)]
+                repo (. parts2 2)e
             (table.insert parts
               (string.format "pr%d: repository(owner: %q, name: %q) { %s }"
                              i owner repo
