@@ -18,10 +18,10 @@
 ; (prs.my-prs)                ; raw: lista de mis PRs abiertos
 
 ;; ── Slack ─────────────────────────────────────────
-; (slack.show-slack)          ; modal con mensajes recientes
-; (slack.show-reviews)        ; modal con pedidos de review filtrados
-; (slack.unread-all)          ; raw: [{:channel :messages}]
-; (slack.review-requests)     ; raw: ídem pero filtrado por review
+; (slack.show-slack 24)       ; modal con mensajes de las últimas N horas
+; (slack.show-reviews 48)     ; modal con pedidos de review de las últimas N horas
+; (slack.unread-all 24)       ; raw: [{:channel :messages}]
+; (slack.review-requests 48)  ; raw: ídem pero filtrado por review
 
 ;; ── tsh (Teleport DB) ─────────────────────────────
 ; (tsh.install-lualine!)      ; una vez: agrega indicador a la statusline

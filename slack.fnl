@@ -13,9 +13,6 @@
 (local channels
   ["#ped-policies-teamonly"])  ; TODO: reemplazar con tus canales
 
-;; Ventana de tiempo (en horas) para considerar mensajes "recientes".
-(local lookback-hours 24)
-
 ;; Subdomain de tu Slack — sale del URL del workspace en el browser.
 (local workspace "auditboard")
 
@@ -106,13 +103,13 @@ Si un canal no tiene pedidos de review, devolvé messages: []."
                           vim.log.levels.INFO)
               parsed))))))
 
-(fn unread-all []
-  "Mensajes recientes de los canales configurados."
-  (ask-claude (build-prompt channels lookback-hours) "unread"))
+(fn unread-all [hours]
+  "Mensajes de los canales configurados en las últimas `hours` horas."
+  (ask-claude (build-prompt channels hours) "unread"))
 
-(fn review-requests []
-  "Mensajes que parecen pedir review de un PR."
-  (ask-claude (build-review-prompt channels lookback-hours) "review requests"))
+(fn review-requests [hours]
+  "Mensajes que parecen pedir review de un PR en las últimas `hours` horas."
+  (ask-claude (build-review-prompt channels hours) "review requests"))
 
 (fn slack-url [channel-id ts]
   "URL del mensaje en Slack — abre en browser o desktop (vía slack:// handler)."
@@ -215,15 +212,15 @@ Si un canal no tiene pedidos de review, devolvé messages: []."
                         opts)
         (vim.keymap.set :n :r #(do (close) (refresh-fn)) opts)))))
 
-(fn show-slack []
-  "Modal con mensajes recientes de los canales configurados."
-  (render-modal (unread-all) " Slack " show-slack))
+(fn show-slack [hours]
+  "Modal con mensajes de los últimos `hours` horas en los canales configurados."
+  (render-modal (unread-all hours) " Slack " #(show-slack hours)))
 
-(fn show-reviews []
-  "Modal con pedidos de review de PRs detectados en los canales."
-  (render-modal (review-requests) " Review requests " show-reviews))
+(fn show-reviews [hours]
+  "Modal con pedidos de review en las últimas `hours` horas."
+  (render-modal (review-requests hours) " Review requests " #(show-reviews hours)))
 
-; (show-slack)
-; (show-reviews)
+; (show-slack 24)
+; (show-reviews 48)
 
 {: unread-all : review-requests : show-slack : show-reviews}
