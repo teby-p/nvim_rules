@@ -1,0 +1,1 @@
+- [Self-contained config en .fnl](feedback_self_contained_config.md) — preferir registrar integraciones nvim desde el .fnl, no editar plugin specs.

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh api *)",
+      "Bash(psql -l)",
+      "Bash(psql -d demo_data -c \"\\\\dt\")",
+      "Bash(psql *)"
+    ]
+  }
+}

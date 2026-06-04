@@ -7,6 +7,7 @@
 (local jira (fennel.dofile (.. dir "/jira.fnl")))
 (local prs (fennel.dofile (.. dir "/prs.fnl")))
 (local slack (fennel.dofile (.. dir "/slack.fnl")))
+(local tsh (fennel.dofile (.. dir "/tsh.fnl")))
 
 ;; ── Jira ──────────────────────────────────────────
 ; (jira.show-issues)         ; modal con mis tickets abiertos
@@ -22,5 +23,13 @@
 ; (slack.unread-all)          ; raw: [{:channel :messages}]
 ; (slack.review-requests)     ; raw: ídem pero filtrado por review
 
+;; ── tsh (Teleport DB) ─────────────────────────────
+; (tsh.install-lualine!)      ; una vez: agrega indicador a la statusline
+; (tsh.connect! "Home › Cloud › Instances › PRNew (pr-us-west-2-tennis / us-west-2) / sox-82749-develop")
+; (tsh.query "SELECT id, name FROM policies LIMIT 5;")
+; (tsh.count-policies)        ; helper: SELECT count(*) FROM policies
+; (tsh.list-tables)           ; helper: tablas del schema public
+; (tsh.disconnect!)           ; cierra el terminal y apaga el indicador
+
 ;; Re-exportamos por si querés requerir madame desde otro lado.
-{: jira : prs : slack}
+{: jira : prs : slack : tsh}
