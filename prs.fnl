@@ -334,3 +334,7 @@
               (vim.keymap.set :n :r #(do (close) (show-prs)) opts))))))))
 
 ; (show-prs)
+
+{: my-prs
+ : show-prs
+ : show-pr-comments}

@@ -190,5 +190,6 @@
 ; (show-issues)
 
 {: my-issues
+ : show-issues
  : extract-jira-key
  : build-jira-lookup}
