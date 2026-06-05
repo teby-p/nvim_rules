@@ -2,7 +2,7 @@
 ;; exportadas listas para evaluar. Corre con Conjure la linea que quieras.
 
 (local fennel (require :fennel))
-(local dir "/Users/epodesta/Development/escort")
+(local dir "/Users/epodesta/Development/escort/chicas")
 
 (local jira (fennel.dofile (.. dir "/jira.fnl")))
 (local prs (fennel.dofile (.. dir "/prs.fnl")))

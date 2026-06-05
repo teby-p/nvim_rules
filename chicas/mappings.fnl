@@ -4,7 +4,7 @@
 (local api vim.api)
 (local vfn vim.fn)
 (local tsh ((. (require :fennel) :dofile)
-            "/Users/epodesta/Development/escort/tsh.fnl"))
+            "/Users/epodesta/Development/escort/chicas/tsh.fnl"))
 
 (local chulos-dir "/Users/epodesta/Development/escort/chulos")
 

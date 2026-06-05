@@ -7,7 +7,7 @@
 ;; con path absoluto. Re-ejecuta el archivo cada vez, así los cambios en
 ;; jira.fnl se ven al re-evaluar este bloque.
 (local jira ((. (require :fennel) :dofile)
-             "/Users/epodesta/Development/escort/jira.fnl"))
+             "/Users/epodesta/Development/escort/chicas/jira.fnl"))
 
 (fn my-prs []
   "Devuelve mis PRs abiertos como lista de tablas."
