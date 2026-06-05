@@ -1,0 +1,1 @@
+1	P-AM	2021-07-08 22:09:06.567+00	2025-02-18 23:35:07.282+00	\N	Access Management Security Policy			1214	65	2021-10-11 23:00:41.042+00	1	\N	\N	\N	\N	\N	30 Days	\N	\N	{"owner_users": {"all": [1]}}	1	Policy

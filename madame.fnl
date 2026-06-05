@@ -8,6 +8,8 @@
 (local prs (fennel.dofile (.. dir "/prs.fnl")))
 (local slack (fennel.dofile (.. dir "/slack.fnl")))
 (local tsh (fennel.dofile (.. dir "/tsh.fnl")))
+(local mappings (fennel.dofile (.. dir "/mappings.fnl")))
+(local chulos (fennel.dofile (.. dir "/chulos.fnl")))
 
 ;; ── Jira ──────────────────────────────────────────
 ; (jira.show-issues)         ; modal con mis tickets abiertos
@@ -31,5 +33,16 @@
 ; (tsh.list-tables)           ; helper: tablas del schema public
 ; (tsh.disconnect!)           ; cierra el terminal y apaga el indicador
 
+;; ── mappings (Auditboard policy stuff) ────────────
+; (mappings.policy-mappings-by-source)    ; resumen por reference_type + source
+; (mappings.policy-dismissals-by-type)    ; resumen de dismissals
+; (mappings.delete-dismissals!)           ; picker para soft-delete
+; (mappings.clear-all-mappings!)          ; soft-delete TODOS los mappings (confirmación)
+; (mappings.replicate-regulation-items!)  ; dump PR → CSVs + import.sql para local
+
+;; ── chulos (correr imports en local) ──────────────
+; (chulos.pick-and-import!)               ; picker + corre psql -d demo_data -f .../import.sql
+; (chulos.list-repros)                    ; raw: nombres de subdirs con import.sql
+
 ;; Re-exportamos por si querés requerir madame desde otro lado.
-{: jira : prs : slack : tsh}
+{: jira : prs : slack : tsh : mappings : chulos}
