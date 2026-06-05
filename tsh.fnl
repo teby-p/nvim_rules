@@ -290,131 +290,7 @@
                 (callback rows)))))
         (or ?delay-ms 500)))))
 
-;; ── Policy mappings (accepted suggestions) ────────
-
-(local mappings-by-source-sql
-  "SELECT 'FrameworkItem' AS reference_type, source, COUNT(*) AS count
-   FROM policy_framework_item_mappings WHERE deleted_at IS NULL GROUP BY source
-   UNION ALL
-   SELECT 'Risk', source, COUNT(*)
-   FROM policy_risk_mappings WHERE deleted_at IS NULL GROUP BY source
-   UNION ALL
-   SELECT 'RegulationItem', source, COUNT(*)
-   FROM policy_regulation_item_mappings WHERE deleted_at IS NULL GROUP BY source
-   UNION ALL
-   SELECT 'AuditableEntity', source, COUNT(*)
-   FROM policy_auditable_entity_mappings WHERE deleted_at IS NULL GROUP BY source
-   UNION ALL
-   SELECT 'ControlsDatum', source, COUNT(*)
-   FROM policy_controls_datum_mappings WHERE deleted_at IS NULL GROUP BY source
-   UNION ALL
-   SELECT 'Policy', source, COUNT(*)
-   FROM policy_policy_mappings WHERE deleted_at IS NULL GROUP BY source
-   ORDER BY reference_type, count DESC")
-
-(fn policy-mappings-by-source []
-  "Resumen de policy mappings por reference_type y source. Útil para
-  identificar qué valor de source corresponde a 'accepted from suggestion'
-  (la otra cara de las dismissals)."
-  (query (.. mappings-by-source-sql ";") 1500))
-
-(fn clear-all-mappings! []
-  "Soft-delete (deleted_at = NOW()) de TODOS los rows activos en los 5 join
-  tables de policy mappings. Atómico (BEGIN/COMMIT), con confirmación."
-  (if (not vim.g.tsh_connected)
-    (vim.notify "tsh: no hay conexión activa" vim.log.levels.WARN)
-    (let [tables ["policy_framework_item_mappings"
-                  "policy_risk_mappings"
-                  "policy_regulation_item_mappings"
-                  "policy_auditable_entity_mappings"
-                  "policy_controls_datum_mappings"]
-          prompt (.. "Soft-delete TODOS los mappings activos de:\n  - "
-                     (table.concat tables "\n  - ")
-                     "\n\n¿Continuar?")
-          choice (vfn.confirm prompt "&Sí\n&No" 2)]
-      (when (= choice 1)
-        (let [updates (icollect [_ t (ipairs tables)]
-                        (.. "UPDATE " t " SET deleted_at = NOW() "
-                            "WHERE deleted_at IS NULL;"))
-              sql (.. "BEGIN;\n" (table.concat updates "\n") "\nCOMMIT;")]
-          (query sql 1500))))))
-
-;; ── Policy dismissals ─────────────────────────────
-
-(local dismissals-summary-sql
-  "SELECT reference_type, COUNT(*) AS count
-   FROM policy_mapping_suggestion_dismissals
-   WHERE deleted_at IS NULL
-   GROUP BY reference_type
-   ORDER BY count DESC")
-
-(fn policy-dismissals-by-type []
-  "Resumen de dismissals de policy_mapping_suggestion_dismissals agrupado
-  por reference_type, contando solo las no borradas (deleted_at IS NULL)."
-  (query (.. dismissals-summary-sql ";")))
-
-(fn delete-dismissals! []
-  "Modal con dismissals por reference_type + opción <ALL>. Al elegir, pide
-  confirmación y hace soft-delete (UPDATE deleted_at = NOW())."
-  (fetch-rows dismissals-summary-sql nil
-    (fn [rows]
-      (if (= 0 (length rows))
-        (vim.notify "tsh: no hay dismissals activos" vim.log.levels.INFO)
-        (let [total (do (var t 0)
-                        (each [_ r (ipairs rows)]
-                          (set t (+ t (or (tonumber r.count) 0))))
-                        t)
-              items [{:label (string.format "<ALL>  (%d)" total) :type :all}]]
-          (each [_ r (ipairs rows)]
-            (table.insert items
-              {:label (string.format "%s  (%s)" r.reference_type r.count)
-               :type r.reference_type}))
-          (let [buf (api.nvim_create_buf false true)
-                lines (icollect [_ it (ipairs items)] it.label)
-                width (math.min 60 (- vim.o.columns 4))
-                height (math.min (length lines) (math.max 4 (- vim.o.lines 8)))
-                row-pos (math.floor (/ (- vim.o.lines height) 2))
-                col-pos (math.floor (/ (- vim.o.columns width) 2))]
-            (api.nvim_buf_set_lines buf 0 -1 false lines)
-            (api.nvim_set_option_value :modifiable false {:buf buf})
-            (api.nvim_set_option_value :buftype :nofile {:buf buf})
-            (let [win (api.nvim_open_win buf true
-                                         {:relative :editor
-                                          :width width :height height
-                                          :row row-pos :col col-pos
-                                          :style :minimal
-                                          :border :rounded
-                                          :title " Borrar dismissals "
-                                          :title_pos :center})
-                  opts {:buffer buf :silent true :nowait true}
-                  close #(when (api.nvim_win_is_valid win)
-                           (api.nvim_win_close win true))]
-              (api.nvim_win_set_cursor win [1 0])
-              (vim.keymap.set :n :q close opts)
-              (vim.keymap.set :n :<Esc> close opts)
-              (vim.keymap.set :n :<CR>
-                #(let [lnum (. (api.nvim_win_get_cursor 0) 1)
-                       item (. items lnum)]
-                   (when item
-                     (close)
-                     (let [target (if (= item.type :all)
-                                    "TODOS los reference_type"
-                                    (tostring item.type))
-                           choice (vfn.confirm
-                                    (.. "Soft-delete dismissals de "
-                                        target "?")
-                                    "&Sí\n&No"
-                                    2)]
-                       (when (= choice 1)
-                         (let [where (if (= item.type :all)
-                                       "deleted_at IS NULL"
-                                       (string.format
-                                         "deleted_at IS NULL AND reference_type = '%s'"
-                                         (sql-escape item.type)))
-                               sql (.. "UPDATE policy_mapping_suggestion_dismissals "
-                                       "SET deleted_at = NOW() WHERE " where ";")]
-                           (query sql))))))
-                opts))))))))
+;; NOTA: lo de policy mappings/dismissals/replicate vive en mappings.fnl ahora.
 
 (fn list-tables []
   "Lista las tablas del schema public."
@@ -472,19 +348,14 @@
 ; (find-tables "%policy_mapping%")
 ; (describe-table "policy_mapping_suggestion_dismissals")
 ; (find-columns "%dismiss%")
-; (policy-dismissals-by-type)
-; (delete-dismissals!)
-; (clear-all-mappings!)
-
 {: connect!
  : disconnect!
  : install-lualine!
  : query
+ : fetch-rows
+ : send-to-tsh
+ : sql-escape
  : count-policies
- : policy-dismissals-by-type
- : delete-dismissals!
- : policy-mappings-by-source
- : clear-all-mappings!
  : list-tables
  : find-tables
  : describe-table
