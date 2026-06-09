@@ -39,7 +39,8 @@
       "Bash(grep * ~/Development/auditboard-dev-env/**)",
       "Bash(cat ~/Development/auditboard-dev-env/**)",
       "Bash(head ~/Development/auditboard-dev-env/**)",
-      "Bash(tail ~/Development/auditboard-dev-env/**)"
+      "Bash(tail ~/Development/auditboard-dev-env/**)",
+      "mcp__unblocked__context_research"
     ]
   }
 }
