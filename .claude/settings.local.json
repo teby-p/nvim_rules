@@ -40,7 +40,9 @@
       "Bash(cat ~/Development/auditboard-dev-env/**)",
       "Bash(head ~/Development/auditboard-dev-env/**)",
       "Bash(tail ~/Development/auditboard-dev-env/**)",
-      "mcp__unblocked__context_research"
+      "mcp__unblocked__context_research",
+      "Bash(grep -E \"^\\\\s+[a-z][a-z0-9_-]+:$\" /Users/epodesta/Development/auditboard-dev-env/docker-compose-devenv.yml)",
+      "Bash(docker inspect *)"
     ]
   }
 }

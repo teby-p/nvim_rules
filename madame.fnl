@@ -10,6 +10,7 @@
 (local tsh (fennel.dofile (.. dir "/tsh.fnl")))
 (local mappings (fennel.dofile (.. dir "/mappings.fnl")))
 (local chulos (fennel.dofile (.. dir "/chulos.fnl")))
+(local docker (fennel.dofile (.. dir "/docker.fnl")))
 
 ;; ── Jira ──────────────────────────────────────────
 ; (jira.show-issues)         ; modal con mis tickets abiertos
@@ -44,5 +45,11 @@
 ; (chulos.pick-and-import!)               ; picker + corre psql -d demo_data -f .../import.sql
 ; (chulos.list-repros)                    ; raw: nombres de subdirs con import.sql
 
+;; ── docker (containers locales) ───────────────────
+; (docker.fix-rag!)                       ; restart ab_mlservice_local + worker (cura ECONNRESET en :8000/rag/recommend)
+; (docker.ps)                             ; modal con containers corriendo
+; (docker.logs :ab_mlservice_local 200)   ; modal con los últimos N logs
+; (docker.restart-containers! [:foo :bar]); restart de containers arbitrarios
+
 ;; Re-exportamos por si querés requerir madame desde otro lado.
-{: jira : prs : slack : tsh : mappings : chulos}
+{: jira : prs : slack : tsh : mappings : chulos : docker}
