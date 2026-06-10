@@ -26,3 +26,5 @@ Los archivos `.md` tienen drawbacks severos:
 - Un plugin para evaluar Fennel desde el buffer — este repo está pensado para
   [Conjure](https://github.com/Olical/conjure) con el cliente de Fennel.
 
+## Instalacion
+- Para usar choferes: cd ~/Development/escort/choferes && npm install

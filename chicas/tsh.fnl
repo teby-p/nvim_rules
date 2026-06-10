@@ -4,9 +4,12 @@
 (local vfn vim.fn)
 
 (fn parse-instance-breadcrumb [s]
-  "Extrae cluster e instancia del string breadcrumb de Galaxy.
-  Ejemplo:
+  "Extrae cluster e instancia del string breadcrumb de Galaxy. Acepta tanto el
+  breadcrumb entero como solo el último segmento — el regex se ancla al
+  '(pr-X / region)' en el medio y al '/ word$' al final, ignora el prefijo.
+  Ejemplos válidos:
     'Home › Cloud › Instances › PRNew (pr-us-west-2-tennis / us-west-2) / sox-82749-develop'
+    'PRNew (pr-us-west-2-tennis / us-west-2) / sox-82749-develop'
   Devuelve {:cluster 'pr-us-west-2-tennis' :instance 'sox-82749-develop'}.
   OJO: el cluster del breadcrumb (Galaxy) NO necesariamente coincide con el
   nombre de la DB registrada en Teleport. Usá `pick-db` para elegir el correcto."
@@ -85,7 +88,9 @@
         names))))
 
 (fn pick-db [on-select]
-  "Modal flotante con las DBs registradas. Llama (on-select db-name) al elegir."
+  "Modal flotante con las DBs registradas. Llama (on-select db-name) al elegir.
+  ASYNC: la UI corre via keymaps, no bloquea el caller. Si necesitás sync
+  (e.g. para encadenar con vim.wait), usá pick-db-sync."
   (let [names (list-dbs)]
     (when names
       (if (= 0 (length names))
@@ -121,6 +126,72 @@
                                (when chosen (on-select chosen)))
                             opts)))))))
 
+(fn flush-typeahead! []
+  "Consume cualquier input pendiente. Necesario antes de inputlist/input cuando
+  se invocan desde un eval-via-keymap (Conjure), o el typeahead los responde
+  con 0 antes de que veas el prompt."
+  (var continue true)
+  (while continue
+    (let [(ok ch) (pcall vim.fn.getchar 0)]
+      (when (or (not ok) (= ch 0))
+        (set continue false)))))
+
+(fn pick-db-sync []
+  "Picker síncrono via vim.fn.inputlist (cmdline). Bloquea el editor — usar
+  cuando necesitás encadenar con vim.wait. Devuelve el nombre elegido o nil
+  (cancelado / sin DBs)."
+  (let [names (list-dbs)]
+    (if (or (not names) (= 0 (length names)))
+      (do (vim.notify "tsh: no hay DBs registradas — ¿corriste `tsh login`?"
+                      vim.log.levels.WARN)
+          nil)
+      (let [prompt-list ["Elegí DB (número, 0 cancela):"]]
+        (each [i n (ipairs names)]
+          (table.insert prompt-list (string.format "%d. %s" i n)))
+        (flush-typeahead!)
+        (vim.cmd "redraw")
+        (let [choice (vim.fn.inputlist prompt-list)]
+          (when (and (>= choice 1) (<= choice (length names)))
+            (. names choice)))))))
+
+(fn cluster-prefix [cluster]
+  "Strippea el último segmento del cluster Galaxy (el team) y devuelve el
+  prefijo con guión al final, listo para matchar contra los DBs Teleport
+  (que usan sufijo load-balanced).
+  'pr-us-west-2-tennis' → 'pr-us-west-2-'
+  Devuelve nil si no hay al menos 2 segmentos."
+  (let [parts (vim.split cluster "-" {:plain true})
+        n (length parts)]
+    (when (> n 1)
+      (let [keep []]
+        (for [i 1 (- n 1)]
+          (table.insert keep (. parts i)))
+        (.. (table.concat keep "-") "-")))))
+
+(fn auto-match-cluster [breadcrumb]
+  "Resuelve la DB de Teleport para un breadcrumb de Galaxy. Estrategias:
+   1. Match exacto: el cluster del breadcrumb existe tal cual en `tsh db ls`.
+   2. Match por prefijo: Galaxy usa 'pr-<region>-<team>' (ej. pr-us-west-2-tennis)
+      y Teleport usa 'pr-<region>-a-0' (load-balanced). Strippeamos el team y
+      buscamos la primera DB que arranque con ese prefijo.
+   Devuelve nil si nada matchea."
+  (let [{:cluster bc-cluster} (parse-instance-breadcrumb breadcrumb)
+        names (list-dbs)]
+    (when (and bc-cluster names (> (length names) 0))
+      (var found nil)
+      ;; 1. exact match
+      (each [_ n (ipairs names)]
+        (when (and (not found) (= n bc-cluster))
+          (set found n)))
+      ;; 2. prefix match
+      (when (not found)
+        (let [prefix (cluster-prefix bc-cluster)]
+          (when prefix
+            (each [_ n (ipairs names)]
+              (when (and (not found) (= 1 (string.find n prefix 1 true)))
+                (set found n))))))
+      found)))
+
 ;; ── Statusline indicator ──────────────────────────
 ;; Estado en `vim.g.tsh_connected` (string = instancia conectada, nil = no).
 ;; El componente de lualine se registra via install-lualine! — evalualo una vez.
@@ -143,18 +214,34 @@
                      (vim.cmd :redrawstatus))})
       (api.nvim_set_current_win orig-win))))
 
-(fn connect! [breadcrumb ?galaxy-id]
-  "Abre el picker de DBs y, al elegir una, lanza el `tsh db connect` en un
-  split-terminal abajo. Si no pasás ?galaxy-id, lo busca solo via el PR Deploy
-  Bot comment (estilo pr-deploy-db-connect.sh)."
+(fn prompt-ready? [term-buf]
+  "true si las últimas líneas del buffer terminan en un prompt psql (=> o =#).
+  Usado por connect! para saber cuándo tsh terminó de autenticar."
+  (if (or (not term-buf) (not (api.nvim_buf_is_valid term-buf)))
+    false
+    (let [lines (api.nvim_buf_get_lines term-buf -10 -1 false)]
+      (var found false)
+      (each [_ line (ipairs lines)]
+        (when (and (not found) (string.match line "=[>#]%s*$"))
+          (set found true)))
+      found)))
+
+(fn connect! [breadcrumb ?galaxy-id ?cluster]
+  "Spawn de `tsh db connect` en split-terminal + vim.wait hasta el prompt psql.
+  Resolución del cluster: 1) ?cluster si lo pasás; 2) auto-match (el cluster
+  del breadcrumb existe como DB en tsh); 3) picker síncrono via inputlist.
+  Devuelve true si conectó OK, false si cancelaste o timeout (90s). Si no pasás
+  ?galaxy-id, lo busca solo via el PR Deploy Bot comment."
   (if vim.g.tsh_connected
-    (vim.notify (.. "tsh: ya hay conexión activa con " vim.g.tsh_connected
-                    ". Disconnect primero.")
-                vim.log.levels.WARN)
+    (do (vim.notify (.. "tsh: ya hay conexión activa con " vim.g.tsh_connected
+                        ". Disconnect primero.")
+                    vim.log.levels.WARN)
+        false)
     (let [{: instance} (parse-instance-breadcrumb breadcrumb)]
       (if (not instance)
-        (vim.notify (.. "tsh: no pude parsear el breadcrumb: " breadcrumb)
-                    vim.log.levels.ERROR)
+        (do (vim.notify (.. "tsh: no pude parsear el breadcrumb: " breadcrumb)
+                        vim.log.levels.ERROR)
+            false)
         (let [galaxy-id (or ?galaxy-id
                             (do (vim.notify (.. "🔎 buscando galaxy-id para "
                                                 instance "…")
@@ -162,11 +249,33 @@
                                 (vim.cmd :redraw)
                                 (fetch-galaxy-id instance)))]
           (if (not galaxy-id)
-            (vim.notify (.. "tsh: no pude encontrar el galaxy-id para " instance)
-                        vim.log.levels.ERROR)
-            (pick-db (fn [cluster]
-                       (let [cmd (build-command breadcrumb galaxy-id cluster)]
-                         (when cmd (spawn-terminal! cmd instance)))))))))))
+            (do (vim.notify (.. "tsh: no pude encontrar el galaxy-id para " instance)
+                            vim.log.levels.ERROR)
+                false)
+            (let [cluster (or ?cluster
+                              (auto-match-cluster breadcrumb)
+                              (pick-db-sync))]
+              (if (not cluster)
+                (do (vim.notify "tsh: picker cancelado / sin cluster" vim.log.levels.INFO) false)
+                (let [cmd (build-command breadcrumb galaxy-id cluster)]
+                  (if (not cmd)
+                    (do (vim.notify "tsh: no se pudo armar el comando"
+                                    vim.log.levels.ERROR)
+                        false)
+                    (do (spawn-terminal! cmd instance)
+                        (vim.notify (.. "⏳ esperando prompt psql para " instance "…")
+                                    vim.log.levels.INFO)
+                        (let [ok? (vim.wait 90000
+                                            #(prompt-ready? vim.g.tsh_buf)
+                                            100)]
+                          (if ok?
+                            (do (vim.notify (.. "✓ tsh conectado: " instance)
+                                            vim.log.levels.INFO)
+                                true)
+                            (do (vim.notify (.. "tsh: timeout (90s) esperando prompt psql para "
+                                                instance)
+                                            vim.log.levels.WARN)
+                                false))))))))))))))
 
 (fn disconnect! []
   "Cierra el terminal del tsh (si está abierto) y apaga el indicador."
@@ -359,4 +468,12 @@
  : list-tables
  : find-tables
  : describe-table
- : find-columns}
+ : find-columns
+ ;; ── exports para debug / uso avanzado ─────────────
+ : parse-instance-breadcrumb
+ : list-dbs
+ : auto-match-cluster
+ : pick-db
+ : pick-db-sync
+ : prompt-ready?
+ : fetch-galaxy-id}
