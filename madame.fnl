@@ -12,6 +12,8 @@
 (local chulos (fennel.dofile (.. dir "/chulos.fnl")))
 (local docker (fennel.dofile (.. dir "/docker.fnl")))
 (local galaxy (fennel.dofile (.. dir "/galaxy.fnl")))
+(local kube (fennel.dofile (.. dir "/kube.fnl")))
+(local suggestions (fennel.dofile (.. dir "/suggestions.fnl")))
 
 ;; ── Jira ──────────────────────────────────────────
 ; (jira.show-issues)         ; modal con mis tickets abiertos
@@ -58,12 +60,29 @@
 ; (galaxy.fetch-galaxy-url "soxhub" "auditboard-frontend" 38743)
 ; (galaxy.fetch-breadcrumb "https://galaxy.auditboardteam.com/admin/cloud/instance/<id>/")
 
+;; ── kube (kubectl al PR — RAG/ML inspection) ─────
+; (kube.use! "sox-95289-develop")                 ; setea namespace activo
+; (kube.ps)                                       ; modal con pods
+; (kube.api-pod)                                  ; nombre del primer api-* en Running
+; (kube.rag-status)                               ; GET $ML_LOCAL_URL/rag/index/status
+; (kube.rag-recommend 1 :program_regulation_items); test directo del recommend
+; (kube.rag-recommend-all-for-policy 1)           ; resumen de los 5 target types
+; (kube.rag-sync!)                                ; POST /rag/index/sync
+; (kube.ml-logs 200)                              ; logs del ml-service
+; (kube.api-logs 200)                             ; logs del backend api
+
+;; ── suggestions (seed overlap policy ↔ entities) ──
+; (suggestions.seed-overlap! 1)                   ; pide al RAG y vincula al program 1
+; (suggestions.seed-overlap! 1 2)                 ; program-id explícito
+; (suggestions.rag-ids 1 :controls_data)          ; raw: IDs que sugiere el RAG
+
 ; (let [url (galaxy.fetch-galaxy-url "soxhub" "auditboard-frontend" 38743)
-;       bc (galaxy.fetch-breadcrumb url)] 
-;     (vim.notify (.. "Conectando a: " bc) vim.log.levels.INFO)
-;     (tsh.connect! bc)
-;     (mappings.policy-dismissals-by-type)    
-;     (tsh.disconnect!))
+      ; bc (galaxy.fetch-breadcrumb url)] 
+    ; (vim.notify (.. "Conectando a: " bc) vim.log.levels.INFO)
+    ; (tsh.connect! bc)
+    ; (mappings.policy-dismissals-by-type)    
+    ; (tsh.disconnect!)
+    ; )
 
 ;; Re-exportamos por si querés requerir madame desde otro lado.
-{: jira : prs : slack : tsh : mappings : chulos : docker : galaxy}
+{: jira : prs : slack : tsh : mappings : chulos : docker : galaxy : kube : suggestions}
