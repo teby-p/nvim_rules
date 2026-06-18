@@ -14,6 +14,7 @@
 (local galaxy (fennel.dofile (.. dir "/galaxy.fnl")))
 (local kube (fennel.dofile (.. dir "/kube.fnl")))
 (local suggestions (fennel.dofile (.. dir "/suggestions.fnl")))
+(local metricas (fennel.dofile (.. dir "/metricas.fnl")))
 
 ;; ── Jira ──────────────────────────────────────────
 ; (jira.show-issues)         ; modal con mis tickets abiertos
@@ -84,5 +85,55 @@
     ; (tsh.disconnect!)
     ; )
 
+;; ── metricas (PRs mergeados front/back/ml) ───────
+; (metricas.merged-prs)                            ; lista plana con :title :url :merged-at :first-commit-at :repo
+; (metricas.merged-prs-in-repo "soxhub/machine-learning")
+; (metricas.print-all)                             ; imprime todos en una línea c/u
+
+;; Solo ML, imprime cada uno:
+; (metricas.print-all (metricas.merged-prs-in-repo "soxhub/machine-learning"))
+
+;; Cantidad por repo:
+; (let [prs (metricas.merged-prs)
+      ; by-repo {}]
+    ; (each [_ p (ipairs prs)]
+      ; (tset by-repo p.repo (+ (or (. by-repo p.repo) 0) 1)))
+    ; (each [r n (pairs by-repo)] (print (string.format "%s → %d" r n))))
+
+;; Cycle time promedio (días entre primer commit y merge):
+; (let [prs (metricas.merged-prs)
+      ; sum 0]
+    ; (each [_ p (ipairs prs)] (set sum (+ sum (or p.days-to-merge 0))))
+    ; (print (string.format "avg cycle time: %.1f días (n=%d)" (/ sum (length prs)) (length prs))))
+
+;; PRs mergeados por semana (ISO week, ej: '2026-W25'):
+; (let [by-week {}]
+    ; (each [_ p (ipairs (metricas.merged-prs))]
+      ; (tset by-week p.merged-week (+ (or (. by-week p.merged-week) 0) 1)))
+    ; (let [weeks (icollect [k _ (pairs by-week)] k)]
+      ; (table.sort weeks)
+      ; (each [_ w (ipairs weeks)] (print (string.format "%s → %d" w (. by-week w))))))
+
+;; Top 5 PRs más lentos:
+; (let [prs (metricas.merged-prs)]
+    ; (table.sort prs #(> (or $1.days-to-merge 0) (or $2.days-to-merge 0)))
+    ; (each [i p (ipairs prs)]
+      ; (when (<= i 5) (print (metricas.format-row p)))))
+
+;; PRs mergeados en los últimos 30 días:
+; (let [cutoff (- (os.time) (* 30 86400))]
+    ; (icollect [_ p (ipairs (metricas.merged-prs))]
+      ; (when (> (vim.fn.strptime "%Y-%m-%dT%H:%M:%SZ" p.merged-at) cutoff)
+        ; p)))
+
+;; Volcar a CSV para abrir en otro lado:
+; (let [f (io.open "/tmp/mis-prs.csv" "w")]
+    ; (f:write "repo,number,first_commit_at,merged_at,merged_week,days_to_merge,title,url\n")
+    ; (each [_ p (ipairs (metricas.merged-prs))]
+      ; (f:write (string.format "%s,%d,%s,%s,%s,%.2f,%q,%s\n"
+                              ; p.repo p.number p.first-commit-at p.merged-at
+                              ; p.merged-week (or p.days-to-merge 0) p.title p.url)))
+    ; (f:close))
+
 ;; Re-exportamos por si querés requerir madame desde otro lado.
-{: jira : prs : slack : tsh : mappings : chulos : docker : galaxy : kube : suggestions}
+{: jira : prs : slack : tsh : mappings : chulos : docker : galaxy : kube : suggestions : metricas}

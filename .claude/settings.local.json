@@ -2,6 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(gh api *)",
+      "Bash(gh search *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr list *)",
+      "Bash(gh release list *)",
+      "Bash(gh release view *)",
+      "Bash(gh repo view *)",
+      "Bash(gh run list *)",
+      "Bash(gh run view *)",
       "Bash(psql -l)",
       "Bash(psql -d demo_data -c \"\\\\dt\")",
       "Bash(psql *)",
