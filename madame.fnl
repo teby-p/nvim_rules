@@ -128,11 +128,12 @@
 
 ;; Volcar a CSV para abrir en otro lado:
 ; (let [f (io.open "/tmp/mis-prs.csv" "w")]
-    ; (f:write "repo,number,first_commit_at,merged_at,merged_week,days_to_merge,title,url\n")
+    ; (f:write "repo,number,first_commit_at,merged_at,merged_week,days_to_merge,approvals,comments,title,url\n")
     ; (each [_ p (ipairs (metricas.merged-prs))]
-      ; (f:write (string.format "%s,%d,%s,%s,%s,%.2f,%q,%s\n"
+      ; (f:write (string.format "%s,%d,%s,%s,%s,%.2f,%d,%d,%q,%s\n"
                               ; p.repo p.number p.first-commit-at p.merged-at
-                              ; p.merged-week (or p.days-to-merge 0) p.title p.url)))
+                              ; p.merged-week (or p.days-to-merge 0)
+                              ; p.approvals p.comments p.title p.url)))
     ; (f:close))
 
 ;; Re-exportamos por si querés requerir madame desde otro lado.

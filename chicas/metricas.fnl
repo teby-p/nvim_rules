@@ -16,6 +16,8 @@
            number title url mergedAt
            repository { nameWithOwner }
            commits(first: 1) { nodes { commit { committedDate } } }
+           totalCommentsCount
+           latestReviews(first: 100) { nodes { state } }
          }
        }
      }
@@ -71,9 +73,19 @@
   (let [t (iso->epoch s)]
     (when t (vfn.strftime "%G-W%V" t))))
 
+(fn count-approvals [n]
+  "Cuenta reviewers únicos en estado APPROVED. latestReviews ya viene deduplicado
+  por autor (devuelve el último review de c/u)."
+  (var n-approved 0)
+  (each [_ r (ipairs (or (?. n :latestReviews :nodes) []))]
+    (when (= r.state "APPROVED") (set n-approved (+ n-approved 1))))
+  n-approved)
+
 (fn flatten-pr [n]
   "Aplana un nodo de PR de GraphQL a una tabla plana.
-  :days-to-merge = días (float) entre first-commit-at y merged-at."
+  :days-to-merge = días (float) entre first-commit-at y merged-at.
+  :comments     = totalCommentsCount (issue + review comments combinados).
+  :approvals    = reviewers únicos que aprobaron."
   (let [merged-at n.mergedAt
         first-commit-at (?. n :commits :nodes 1 :commit :committedDate)]
     {:number n.number
@@ -83,7 +95,9 @@
      : merged-at
      : first-commit-at
      :days-to-merge (diff-days first-commit-at merged-at)
-     :merged-week (iso-week merged-at)}))
+     :merged-week (iso-week merged-at)
+     :comments (or n.totalCommentsCount 0)
+     :approvals (count-approvals n)}))
 
 (fn merged-prs [?query]
   "Lista plana de mis PRs mergeados (todos los repos donde tengo PRs).
@@ -113,12 +127,14 @@
 
 (fn format-row [p]
   "String de una línea por PR — útil para imprimir en el REPL."
-  (string.format "%s  #%d  %s → %s  (%5.1fd)  %s"
+  (string.format "%s  #%d  %s → %s  (%5.1fd)  ✅%d  💬%d  %s"
                  (or p.repo "?")
                  (or p.number 0)
                  (or p.first-commit-at "?")
                  (or p.merged-at "?")
                  (or p.days-to-merge 0)
+                 (or p.approvals 0)
+                 (or p.comments 0)
                  (or p.title "")))
 
 (fn print-all [?prs]
