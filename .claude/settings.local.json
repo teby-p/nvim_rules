@@ -50,7 +50,11 @@
       "Bash(tail ~/Development/auditboard-dev-env/**)",
       "mcp__unblocked__context_research",
       "Bash(grep -E \"^\\\\s+[a-z][a-z0-9_-]+:$\" /Users/epodesta/Development/auditboard-dev-env/docker-compose-devenv.yml)",
-      "Bash(docker inspect *)"
+      "Bash(docker inspect *)",
+      "Bash(xargs ls -la)"
     ]
-  }
+  },
+  "disabledMcpjsonServers": [
+    "music"
+  ]
 }

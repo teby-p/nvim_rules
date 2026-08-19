@@ -1,3 +1,4 @@
+;; Run with \ee \eb 
 ;; madame.fnl — punto de entrada. Carga los demas y deja las funciones
 ;; exportadas listas para evaluar. Corre con Conjure la linea que quieras.
 
@@ -71,6 +72,10 @@
 ; (kube.rag-sync!)                                ; POST /rag/index/sync
 ; (kube.ml-logs 200)                              ; logs del ml-service
 ; (kube.api-logs 200)                             ; logs del backend api
+; (kube.why-pending)                              ; Events de los pods que NO están Running (Pending, etc)
+; (kube.events 40)                                ; eventos del namespace, más nuevos al final
+; (kube.describe-pod "worker-convert-markup-files-xxxx")
+; (kube.not-running)                              ; raw: [[name status] ...]
 
 ;; ── suggestions (seed overlap policy ↔ entities) ──
 ; (suggestions.seed-overlap! 1)                   ; pide al RAG y vincula al program 1

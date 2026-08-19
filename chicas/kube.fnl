@@ -212,6 +212,68 @@
   (let [pod (api-pod ?ns)]
     (when pod (logs pod ?n ?ns))))
 
+;; ── Scheduling / describe (pods que no arrancan) ───
+;;
+;; Cuando un pod está en Pending el contenedor todavía no existe, así que
+;; `logs` y `exec` no sirven: el motivo vive en los Events del describe.
+
+(fn describe-pod [pod ?ns]
+  "Modal con el `kubectl describe pod` completo."
+  (let [ns (require-ns ?ns)]
+    (when ns
+      (let [(ok? out) (run [:-n ns :describe :pod pod])]
+        (if ok?
+          (show-output (.. " describe " pod " ") (lines-of out))
+          (vim.notify (.. "kubectl describe error: " out) vim.log.levels.ERROR))))))
+
+(fn events [?n ?ns]
+  "Modal con los eventos del namespace ordenados por fecha (últimos ?n, default 40)."
+  (let [ns (require-ns ?ns)
+        n (or ?n 40)]
+    (when ns
+      (let [(ok? out) (run [:-n ns :get :events :--sort-by=.lastTimestamp])]
+        (if (not ok?)
+          (vim.notify (.. "kubectl get events error: " out) vim.log.levels.ERROR)
+          (let [ls (lines-of out)
+                total (length ls)
+                tail []]
+            (for [i (math.max 1 (- total (- n 1))) total]
+              (table.insert tail (. ls i)))
+            (show-output (.. " events @ " ns " (últimos " n ") ") tail)))))))
+
+(fn not-running [?ns]
+  "[[name status]] de los pods que no están en Running."
+  (let [ls (or (pods ?ns) [])
+        acc []]
+    (each [_ line (ipairs ls)]
+      (let [name (string.match line "^(%S+)")
+            status (string.match line "^%S+%s+(%S+)")]
+        (when (and name status (not= status "Running"))
+          (table.insert acc [name status]))))
+    acc))
+
+(fn why-pending [?ns]
+  "Para cada pod que no esté en Running, muestra la sección Events de su
+  describe — el motivo por el que el scheduler no lo ubica (recursos,
+  afinidad, taints, PVC sin bindear)."
+  (let [ns (require-ns ?ns)]
+    (when ns
+      (let [bad (not-running ns)]
+        (if (= 0 (length bad))
+          (vim.notify "kube: todos los pods están Running" vim.log.levels.INFO)
+          (let [acc []]
+            (each [_ [name status] (ipairs bad)]
+              (table.insert acc (.. "── " name "  [" status "] ──"))
+              (let [(ok? out) (run [:-n ns :describe :pod name])]
+                (if (not ok?)
+                  (table.insert acc (.. "  describe error: " (vim.trim (or out ""))))
+                  (do (var in-events false)
+                      (each [_ l (ipairs (lines-of out))]
+                        (when (string.find l "^Events:") (set in-events true))
+                        (when in-events (table.insert acc l))))))
+              (table.insert acc ""))
+            (show-output (.. " why-pending @ " ns " ") acc)))))))
+
 ;; ── Curl al ML service desde el pod del API ───────
 ;;
 ;; El ML service no tiene auth desde dentro del cluster — el backend lo llama
@@ -357,6 +419,9 @@ done"
 ; (ml-logs 200)
 ; (api-logs 200)
 ; (rag-flush!)
+; (why-pending)                                  ; por qué no arrancan los pods que no están Running
+; (events 40)                                    ; eventos del namespace, más nuevos al final
+; (describe-pod "worker-convert-markup-files-5b75c4d974-2xs5m")
 
 {: use!
  : current-namespace
@@ -372,6 +437,10 @@ done"
  : logs
  : api-logs
  : ml-logs
+ : describe-pod
+ : events
+ : not-running
+ : why-pending
  : rag-curl
  : rag-status
  : rag-debug
